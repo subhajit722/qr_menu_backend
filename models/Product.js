@@ -11,6 +11,11 @@ const Product = sequelize.define(
       primaryKey: true,
     },
 
+    restaurantId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+
     categoryId: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -13,12 +13,12 @@ const sequelize = new Sequelize(
     dialect: "mysql",
     logging: false,
 
-    dialectOptions: {
-      ssl: {
-        ca: fs.readFileSync(process.env.DB_SSL_CA_PATH, "utf8"),
-        rejectUnauthorized: true,
-      },
-    },
+    // dialectOptions: {
+    //   ssl: {
+    //     ca: fs.readFileSync(process.env.DB_SSL_CA_PATH, "utf8"),
+    //     rejectUnauthorized: true,
+    //   },
+    // },
 
     pool: {
       max: 5,

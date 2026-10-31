@@ -4,7 +4,7 @@ const path = require("path");
 
 const { Product, Category } = require("../models");
 
-// Helper: delete an uploaded image safely
+// DELETE UPLOADED IMAGE
 const removeImage = (imagePath) => {
   if (!imagePath) return;
 
@@ -18,20 +18,30 @@ const removeImage = (imagePath) => {
   });
 };
 
-// Helper: parse boolean values from JSON or FormData
+// BOOLEAN PARSER
 const parseBoolean = (value, defaultValue) => {
   if (value === undefined) return defaultValue;
   if (value === true || value === "true") return true;
   if (value === false || value === "false") return false;
+
   return null;
 };
 
 // CREATE PRODUCT
 const createProduct = async (req, res) => {
   try {
+    const restaurantId = req.admin.restaurantId;
+
     const { name, description, price, categoryId } = req.body;
 
-    if (!name || !name.trim() || !categoryId || price === undefined) {
+    if (
+      typeof name !== "string" ||
+      !name.trim() ||
+      !categoryId ||
+      price === undefined
+    ) {
+      if (req.file) removeImage(req.file.filename);
+
       return res.status(400).json({
         success: false,
         message: "Name, price and category are required",
@@ -41,18 +51,28 @@ const createProduct = async (req, res) => {
     const numericPrice = Number(price);
 
     if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      if (req.file) removeImage(req.file.filename);
+
       return res.status(400).json({
         success: false,
         message: "Enter a valid price",
       });
     }
 
-    const category = await Category.findByPk(categoryId);
+    // Verify category belongs to logged-in restaurant
+    const category = await Category.findOne({
+      where: {
+        id: categoryId,
+        restaurantId,
+      },
+    });
 
     if (!category) {
+      if (req.file) removeImage(req.file.filename);
+
       return res.status(404).json({
         success: false,
-        message: "Category not found",
+        message: "Category not found in your restaurant",
       });
     }
 
@@ -62,6 +82,8 @@ const createProduct = async (req, res) => {
     );
 
     if (isAvailable === null) {
+      if (req.file) removeImage(req.file.filename);
+
       return res.status(400).json({
         success: false,
         message: "Invalid availability value",
@@ -69,6 +91,7 @@ const createProduct = async (req, res) => {
     }
 
     const product = await Product.create({
+      restaurantId,
       name: name.trim(),
       description,
       price: numericPrice,
@@ -77,7 +100,7 @@ const createProduct = async (req, res) => {
       isAvailable,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Product created successfully",
       data: product,
@@ -85,9 +108,11 @@ const createProduct = async (req, res) => {
   } catch (error) {
     if (req.file) removeImage(req.file.filename);
 
-    res.status(500).json({
+    console.error("Create product error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Unable to create product",
     });
   }
 };
@@ -95,7 +120,9 @@ const createProduct = async (req, res) => {
 // GET ALL PRODUCTS
 const getProducts = async (req, res) => {
   try {
-    const where = {};
+    const restaurantId = req.admin.restaurantId;
+
+    const where = { restaurantId };
 
     if (req.query.categoryId) {
       where.categoryId = req.query.categoryId;
@@ -113,15 +140,17 @@ const getProducts = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       count: products.length,
       data: products,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Get products error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Unable to fetch products",
     });
   }
 };
@@ -129,7 +158,13 @@ const getProducts = async (req, res) => {
 // GET SINGLE PRODUCT
 const getProductById = async (req, res) => {
   try {
-    const product = await Product.findByPk(req.params.id, {
+    const restaurantId = req.admin.restaurantId;
+
+    const product = await Product.findOne({
+      where: {
+        id: req.params.id,
+        restaurantId,
+      },
       include: [
         {
           model: Category,
@@ -145,14 +180,16 @@ const getProductById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: product,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Get product error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Unable to fetch product",
     });
   }
 };
@@ -160,7 +197,14 @@ const getProductById = async (req, res) => {
 // UPDATE PRODUCT
 const updateProduct = async (req, res) => {
   try {
-    const product = await Product.findByPk(req.params.id);
+    const restaurantId = req.admin.restaurantId;
+
+    const product = await Product.findOne({
+      where: {
+        id: req.params.id,
+        restaurantId,
+      },
+    });
 
     if (!product) {
       if (req.file) removeImage(req.file.filename);
@@ -176,6 +220,8 @@ const updateProduct = async (req, res) => {
 
     if (name !== undefined) {
       if (typeof name !== "string" || !name.trim()) {
+        if (req.file) removeImage(req.file.filename);
+
         return res.status(400).json({
           success: false,
           message: "Invalid product name",
@@ -193,6 +239,8 @@ const updateProduct = async (req, res) => {
       const numericPrice = Number(price);
 
       if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+        if (req.file) removeImage(req.file.filename);
+
         return res.status(400).json({
           success: false,
           message: "Enter a valid price",
@@ -203,12 +251,19 @@ const updateProduct = async (req, res) => {
     }
 
     if (categoryId !== undefined) {
-      const category = await Category.findByPk(categoryId);
+      const category = await Category.findOne({
+        where: {
+          id: categoryId,
+          restaurantId,
+        },
+      });
 
       if (!category) {
+        if (req.file) removeImage(req.file.filename);
+
         return res.status(404).json({
           success: false,
-          message: "Category not found",
+          message: "Category not found in your restaurant",
         });
       }
 
@@ -216,9 +271,11 @@ const updateProduct = async (req, res) => {
     }
 
     if (isAvailable !== undefined) {
-      const parsed = parseBoolean(isAvailable, true);
+      const parsed = parseBoolean(isAvailable);
 
       if (parsed === null) {
+        if (req.file) removeImage(req.file.filename);
+
         return res.status(400).json({
           success: false,
           message: "Invalid availability value",
@@ -236,11 +293,12 @@ const updateProduct = async (req, res) => {
 
     await product.save();
 
+    // Delete old image only after successful database update
     if (req.file && oldImage) {
       removeImage(oldImage);
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Product updated successfully",
       data: product,
@@ -248,9 +306,11 @@ const updateProduct = async (req, res) => {
   } catch (error) {
     if (req.file) removeImage(req.file.filename);
 
-    res.status(500).json({
+    console.error("Update product error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Unable to update product",
     });
   }
 };
@@ -258,7 +318,14 @@ const updateProduct = async (req, res) => {
 // DELETE PRODUCT
 const deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findByPk(req.params.id);
+    const restaurantId = req.admin.restaurantId;
+
+    const product = await Product.findOne({
+      where: {
+        id: req.params.id,
+        restaurantId,
+      },
+    });
 
     if (!product) {
       return res.status(404).json({
@@ -271,16 +338,20 @@ const deleteProduct = async (req, res) => {
 
     await product.destroy();
 
-    if (oldImage) removeImage(oldImage);
+    if (oldImage) {
+      removeImage(oldImage);
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Product deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Delete product error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Unable to delete product",
     });
   }
 };

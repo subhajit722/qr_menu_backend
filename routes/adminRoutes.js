@@ -2,25 +2,46 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
-
+const adminMiddleware = require("../middleware/authMiddleware");
+const restaurantUpload = require("../middleware/restaurantUpload");
+const { getAdminProfile } = require("../controllers/adminProfileController");
 const {
-  getProfile,
-  updateProfile,
+  getRestaurantProfile,
+  updateRestaurantProfile,
+   resetRestaurantProfile
+} = require("../controllers/restaurantProfileController");
+const {
+  loginAdmin,
+
+
   changePassword,
-  createAdmin,
-  loginAdmin
 } = require("../controllers/adminController");
 
-
-router.post("/create", createAdmin);
+// Public route
 router.post("/login", loginAdmin);
-// All admin routes require authentication
-router.use(authMiddleware);
 
-router.get("/profile", getProfile);
+// All routes below require restaurant admin authentication
+router.use(adminMiddleware);
+// router.get("/profile", getAdminProfile);
+// router.get("/profile", getAdminProfile);
 
-router.put("/profile", updateProfile);
+
+router.get("/profile", getRestaurantProfile);
+
+router.put(
+  "/profile",
+  restaurantUpload.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "bannerImage", maxCount: 1 },
+    { name: "offerBoxImage", maxCount: 1 },
+  ]),
+  updateRestaurantProfile
+);
+router.post(
+  "/profile/reset",
+
+  resetRestaurantProfile
+);
 
 router.put("/change-password", changePassword);
 

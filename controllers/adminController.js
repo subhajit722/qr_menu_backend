@@ -1,147 +1,116 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { Admin } = require("../models");
+const { Admin, Restaurant } = require("../models");
 
-// CREATE ADMIN
-const createAdmin = async (req, res) => {
-  console.log("Create Admin Request Body:",req.body); // Debugging line
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !username.trim() || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Username and password are required",
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 8 characters long",
-      });
-    }
-
-    const existingAdmin = await Admin.findOne({
-      where: { username: username.trim() },
-    });
-
-    if (existingAdmin) {
-      return res.status(409).json({
-        success: false,
-        message: "Username already exists",
-      });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const newAdmin = await Admin.create({
-      username: username.trim(),
-      password: hashedPassword,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Admin created successfully",
-      data: {
-        id: newAdmin.id,
-        username: newAdmin.username,
-        createdAt: newAdmin.createdAt,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create admin",
-    });
-  }
-};
-
+// RESTAURANT ADMIN LOGIN
 const loginAdmin = async (req, res) => {
-   console.log("Login Admin Request Body:", req.body); // Debugging line
   try {
-    const { username, password } = req.body;
-   
+ const username =
+  typeof req.body.username === "string"
+    ? req.body.username.trim()
+    : "";
 
-    // 1. Validate input
-    if (!username || !username.trim() || !password) {
+const password =
+  typeof req.body.password === "string"
+    ? req.body.password
+    : "";
+
+    if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: "Username and password are required",
+        message: "Username and password are required.",
       });
     }
 
-    // 2. Find admin by username
     const admin = await Admin.findOne({
-      where: { username: username.trim() },
+      where: {
+        username: username.trim(),
+      },
+      include: [
+        {
+          model: Restaurant,
+          as: "restaurant",
+        },
+      ],
     });
 
     if (!admin) {
       return res.status(401).json({
         success: false,
-        message: "Invalid username or password",
+        message: "Invalid username or password.",
       });
     }
 
-    // 3. Compare passwords
-    const isMatch = await bcrypt.compare(password, admin.password);
-
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid username or password",
-      });
-    }
-
-    // 4. Generate JWT Token
-    // Make sure to set JWT_SECRET in your .env file!
-    const token = jwt.sign(
-      { id: admin.id, username: admin.username },
-      process.env.JWT_SECRET || "fallback_secret_key",
-      { expiresIn: "1d" }
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      admin.password
     );
 
-    // 5. Send success response with token
-    res.status(200).json({
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid username or password.",
+      });
+    }
+
+    if (!admin.restaurant || admin.restaurant.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: "Your restaurant account is inactive.",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        adminId: admin.id,
+        restaurantId: admin.restaurantId,
+        role: "admin",
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    return res.status(200).json({
       success: true,
-      message: "Login successful",
+      message: "Login successful.",
       token,
-      data: {
+      admin: {
         id: admin.id,
         username: admin.username,
+        restaurantId: admin.restaurantId,
+        restaurant: {
+          id: admin.restaurant.id,
+          name: admin.restaurant.name,
+          slug: admin.restaurant.slug,
+          logo: admin.restaurant.logo,
+        },
       },
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Admin login error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: "Login failed",
-      error: error.message,
+      message: "Server error during login.",
     });
   }
 };
 
-// GET ADMIN PROFILE
-const getProfile = async (req, res) => {
+// GET LOGGED-IN ADMIN PROFILE
+const getAdminProfile = async (req, res) => {
   try {
-    const admin = await Admin.findByPk(req.admin.id, {
-      attributes: ["id", "username", "createdAt"],
-    });
-
-    if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: "Admin not found",
-      });
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: admin,
+      admin: req.admin,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Admin profile error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: "Failed to fetch admin profile",
+      message: "Unable to fetch admin profile.",
     });
   }
 };
@@ -253,10 +222,8 @@ const changePassword = async (req, res) => {
 };
 
 module.exports = {
-  createAdmin,
-  getProfile,
-  updateProfile,
-  changePassword,
   loginAdmin,
-  loginAdmin
+  getAdminProfile,
+  changePassword,
+  updateProfile,
 };
