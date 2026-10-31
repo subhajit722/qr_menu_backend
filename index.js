@@ -10,6 +10,8 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const productRoutes = require("./routes/productRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const menuRoutes = require("./routes/menuRoutes");
+const superAdminRoutes = require("./routes/superAdminRoutes");
+const offerRoutes = require("./routes/offerRoutes");
 
 const { connectDB } = require("./config/database");
 
@@ -30,10 +32,12 @@ app.use(
 );
 
 // API Routes
+app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/offers", offerRoutes);
 
 // Health Check
 app.get("/", (req, res) => {

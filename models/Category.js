@@ -11,10 +11,14 @@ const Category = sequelize.define(
       primaryKey: true,
     },
 
+    restaurantId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
 
     status: {
@@ -25,6 +29,12 @@ const Category = sequelize.define(
   {
     tableName: "categories",
     timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ["restaurantId", "name"],
+      },
+    ],
   }
 );
 

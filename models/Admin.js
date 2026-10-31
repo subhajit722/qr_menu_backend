@@ -21,6 +21,11 @@ const Admin = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: false,
     },
+
+   restaurantId: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+},
   },
   {
     tableName: "admins",

@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-const verifyToken = require("../middleware/authMiddleware");
+const adminMiddleware = require("../middleware/authMiddleware");
 
 const {
   createCategory,
@@ -12,13 +12,15 @@ const {
   deleteCategory,
 } = require("../controllers/categoryController");
 
-// Public read access
+// Protect ALL category routes
+
+router.use(adminMiddleware);
+
+// Category CRUD
+router.post("/", createCategory);
 router.get("/", getCategories);
 router.get("/:id", getCategoryById);
-
-// Protected admin operations
-router.post("/", verifyToken, createCategory);
-router.put("/:id", verifyToken, updateCategory);
-router.delete("/:id", verifyToken, deleteCategory);
+router.put("/:id", updateCategory);
+router.delete("/:id", deleteCategory);
 
 module.exports = router;
